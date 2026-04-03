@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TextilScan Pro | Ficha Técnica</title>
+    <script src="https://jsdelivr.net"></script>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; --success: #27ae60; --card-bg: #ffffff; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; background: var(--bg); margin: 0; padding: 15px; }
+        .container { max-width: 450px; width: 100%; background: white; padding: 20px; border-radius: 8px; border-top: 8px solid var(--primary); box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+        
+        /* Ficha Técnica */
+        #summary-card { display: none; background: #fff; border: 2px solid var(--accent); border-radius: 8px; margin-top: 15px; padding: 15px; text-align: left; animation: fadeIn 0.5s; }
+        .card-title { color: var(--accent); font-weight: bold; border-bottom: 1px solid #eee; margin-bottom: 10px; padding-bottom: 5px; text-transform: uppercase; font-size: 0.8rem; }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
+        .data-label { color: #7f8c8d; font-weight: 500; }
+        .data-value { color: var(--primary); font-weight: bold; }
+
+        .counter-box { background: var(--primary); color: white; padding: 12px; border-radius: 4px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .counter-number { font-size: 2rem; font-weight: bold; color: var(--accent); }
+
+        video { width: 100%; border-radius: 4px; display: none; margin-bottom: 15px; border: 2px solid var(--primary); }
+        #canvas { display: none; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+        button { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 4px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        .btn-excel { background: var(--success); width: 100%; margin-top: 10px; }
+        .file-label { background: #fff; color: var(--primary); border: 2px solid var(--primary); padding: 12px; border-radius: 4px; cursor: pointer; font-weight: bold; text-align: center; }
+        
+        #history-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 15px; }
+        #history-table td { border-bottom: 1px solid #f0f0f0; padding: 6px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="maquilador-display" style="font-size: 0.8rem; text-align: left; margin-bottom: 10px; color: #7f8c8d;">
+        👤 Operador: <strong id="nombre-span" style="color: var(--primary);">...</strong>
+    </div>
+
+    <div class="counter-box">
+        <div style="text-align:left; font-size: 0.8rem;">TOTAL<br>PROCESADO</div>
+        <div id="counter" class="counter-number">0</div>
+    </div>
+    
+    <video id="video" playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <!-- FICHA TÉCNICA VISUAL -->
+    <div id="summary-card">
+        <div class="card-title">Ficha Técnica del Paquete</div>
+        <div id="card-content"></div>
+    </div>
+
+    <div class="btn-group" style="margin-top:15px;">
+        <button id="btn-camera">📸 ESCANEAR AHORA</button>
+        <label for="file-input" class="file-label">📁 CARGAR IMAGEN</label>
+        <input type="file" id="file-input" accept="image/*" style="display: none;">
+    </div>
+
+    <table id="history-table">
+        <tbody id="history-body"></tbody>
+    </table>
+    
+    <button id="btn-download" class="btn-excel" style="display:none;">📊 DESCARGAR EXCEL</button>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const historyBody = document.getElementById('history-body');
+    const counterDiv = document.getElementById('counter');
+    const summaryCard = document.getElementById('summary-card');
+    const cardContent = document.getElementById('card-content');
+    const btnDownload = document.getElementById('btn-download');
+    
+    let nombreMaquilador = localStorage.getItem('nombreMaquilador') || prompt("Nombre del Maquilador:");
+    localStorage.setItem('nombreMaquilador', nombreMaquilador);
+    document.getElementById('nombre-span').innerText = nombreMaquilador;
+
+    let scanData = JSON.parse(localStorage.getItem('textilScanData')) || [];
+    actualizarInterfaz();
+
+    function registrarQR(contenido) {
+        const ahora = new Date();
+        const hora = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        // 1. Mostrar Ficha Técnica
+        mostrarFicha(contenido);
+
+        // 2. Guardar datos
+        scanData.push({ fecha: ahora.toLocaleDateString(), hora, maquilador: nombreMaquilador, contenido });
+        localStorage.setItem('textilScanData', JSON.stringify(scanData));
+        
+        actualizarInterfaz();
+    }
+
+    function mostrarFicha(texto) {
+        summaryCard.style.display = "block";
+        // Intentamos separar por barras, comas o guiones si existen
+        const partes = texto.split(/[|,;-]/);
+        
+        if (partes.length > 1) {
+            cardContent.innerHTML = partes.map(p => {
+                const detalle = p.split(':');
+                return `<div class="data-row">
+                    <span class="data-label">${detalle[0] || 'Dato'}</span>
+                    <span class="data-value">${detalle[1] || detalle[0]}</span>
+                </div>`;
+            }).join('');
+        } else {
+            cardContent.innerHTML = `<div class="data-row"><span class="data-value">${texto}</span></div>`;
+        }
+    }
+
+    function actualizarInterfaz() {
+        counterDiv.innerText = scanData.length;
+        historyBody.innerHTML = "";
+        if (scanData.length > 0) {
+            btnDownload.style.display = "block";
+            scanData.slice().reverse().slice(0, 3).forEach(row => {
+                historyBody.insertAdjacentHTML('beforeend', `<tr><td>${row.hora}</td><td>${row.contenido.substring(0,25)}...</td></tr>`);
+            });
+        }
+    }
+
+    // --- Lógica de Cámara ---
+    document.getElementById('btn-camera').addEventListener('click', async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream; video.style.display = "block"; video.play();
+        const loop = () => {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+                if (code) {
+                    registrarQR(code.data);
+                    video.srcObject.getTracks().forEach(t => t.stop());
+                    video.style.display = "none";
+                    return;
+                }
+            }
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+    });
+
+    // --- Lógica de Archivo ---
+    document.getElementById('file-input').addEventListener('change', e => {
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width; canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+                if (code) registrarQR(code.data); else alert("No se detectó QR");
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(e.target.files);
+    });
+
+    // --- Exportar Excel ---
+    btnDownload.addEventListener('click', () => {
+        let csv = "Maquilador,Fecha,Hora,Codigo\n";
+        scanData.forEach(r => { csv += `"${r.maquilador}",${r.fecha},${r.hora},"${r.contenido}"\n`; });
+        const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `paquetes_entregados.csv`;
+        link.click();
+    });
+</script>
+</body>
+</html>
